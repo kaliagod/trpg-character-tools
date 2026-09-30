@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ゆとシート 支出欄→持ち物欄 変換ツール</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f4f6f8;
+      color: #222;
+    }
+
+    .container {
+      width: min(1000px, calc(100% - 32px));
+      margin: 40px auto;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 1.8rem;
+    }
+
+    .description {
+      margin: 0 0 24px;
+      color: #555;
+      line-height: 1.7;
+    }
+
+    .panel {
+      background: #fff;
+      border: 1px solid #d9dee5;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .field-label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 360px;
+      resize: vertical;
+      padding: 12px;
+      border: 1px solid #bfc7d1;
+      border-radius: 6px;
+      font: 14px/1.6 Consolas, "Yu Gothic UI", monospace;
+      background: #fff;
+    }
+
+    textarea:focus {
+      outline: 2px solid #8ab4f8;
+      border-color: #5b8def;
+    }
+
+    #output {
+      background: #f8fafc;
+    }
+
+    .buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    button {
+      border: 1px solid #aeb7c2;
+      border-radius: 6px;
+      padding: 9px 16px;
+      font-size: 14px;
+      cursor: pointer;
+      background: #fff;
+    }
+
+    button:hover {
+      background: #eef2f6;
+    }
+
+    button.primary {
+      background: #2563eb;
+      color: #fff;
+      border-color: #2563eb;
+    }
+
+    button.primary:hover {
+      background: #1d4ed8;
+    }
+
+    .status {
+      min-height: 1.5em;
+      margin-top: 12px;
+      color: #2563eb;
+      font-size: 14px;
+    }
+
+    .example {
+      margin-top: 24px;
+      padding: 14px 16px;
+      border-left: 4px solid #8b95a5;
+      background: #f7f8fa;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    code {
+      font-family: Consolas, "Yu Gothic UI", monospace;
+    }
+
+    @media (max-width: 720px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      textarea {
+        min-height: 240px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <h1>ゆとシート 支出欄 → 持ち物欄 変換</h1>
+    <p class="description">
+      支出欄の記載から <code>::価格式</code> を削除し、
+      価格式の末尾にある <code>*数字</code> だけを個数として残します。
+    </p>
+
+    <section class="panel">
+      <div class="grid">
+        <div>
+          <label class="field-label" for="input">支出欄</label>
+          <textarea id="input" placeholder="例：
+冒険者セット::-100
+着替えセット::-10
+ぬいぐるみSサイズ::-30
+救命草::-30*5
+魔香草::-100*3"></textarea>
+        </div>
+
+        <div>
+          <label class="field-label" for="output">持ち物欄用</label>
+          <textarea id="output" readonly placeholder="変換結果がここに表示されます"></textarea>
+        </div>
+      </div>
+
+      <div class="buttons">
+        <button class="primary" id="convertButton">変換</button>
+        <button id="copyButton">結果をコピー</button>
+        <button id="clearButton">クリア</button>
+      </div>
+
+      <div class="status" id="status" aria-live="polite"></div>
+
+      <div class="example">
+        <strong>変換例</strong><br>
+        <code>救命草::-30*5</code> → <code>救命草*5</code><br>
+        <code>魔香草::-(100+20)*3</code> → <code>魔香草*3</code><br>
+        <code>冒険者セット::-100</code> → <code>冒険者セット</code>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    function convertLine(line) {
+      const markerIndex = line.indexOf("::");
+
+      // "::" がない行はそのまま残す
+      if (markerIndex === -1) {
+        return line;
+      }
+
+      const itemName = line.slice(0, markerIndex);
+      const expression = line.slice(markerIndex + 2);
+
+      // 価格式の末尾にある "*数字" のみを個数として残す
+      // 例: -30*5 → *5
+      //     -(100+20)*3 → *3
+      const quantityMatch = expression.match(/\*(\d+)\s*$/);
+
+      if (quantityMatch) {
+        return itemName + "*" + quantityMatch[1];
+      }
+
+      return itemName;
+    }
+
+    function convertText(text) {
+      return text
+        .split(/\r?\n/)
+        .map(convertLine)
+        .join("\n");
+    }
+
+    const input = document.getElementById("input");
+    const output = document.getElementById("output");
+    const status = document.getElementById("status");
+
+    document.getElementById("convertButton").addEventListener("click", () => {
+      output.value = convertText(input.value);
+      status.textContent = "変換しました。";
+    });
+
+    document.getElementById("copyButton").addEventListener("click", async () => {
+      if (!output.value) {
+        status.textContent = "コピーする変換結果がありません。";
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(output.value);
+        status.textContent = "変換結果をクリップボードにコピーしました。";
+      } catch (error) {
+        output.select();
+        document.execCommand("copy");
+        status.textContent = "変換結果をコピーしました。";
+      }
+    });
+
+    document.getElementById("clearButton").addEventListener("click", () => {
+      input.value = "";
+      output.value = "";
+      status.textContent = "";
+      input.focus();
+    });
+
+    // 入力時に自動変換
+    input.addEventListener("input", () => {
+      output.value = convertText(input.value);
+      status.textContent = "";
+    });
+  </script>
+</body>
+</html>
+
